@@ -1,0 +1,16 @@
+[package]
+name = "algotoken"
+version = "1.0.0"
+authors = []
+
+[addresses]
+algotoken = "0x848efb12b546bb02848db128300474917091a81bc5d5c726e804955fd73bd9fa"
+
+[dev-addresses]
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "aptos-node-v1.19.0"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dev-dependencies]
