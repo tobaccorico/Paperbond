@@ -3,7 +3,7 @@ const ReqError = require("../utilities/ReqError");
 const User = require("../models/User");
 
 exports.getSelfProfile = catchAsyncError(async (req, res, next) => {
-  const user = await User.findById(req.user.addr).select(
+  const user = await User.findById(req.user.sub).select(
     "-contacts -password -__v"
   );
 
@@ -18,8 +18,7 @@ exports.getSelfProfile = catchAsyncError(async (req, res, next) => {
 });
 
 exports.updateSelfProfile = catchAsyncError(async (req, res, next) => {
-  // This action should send a message to all sockets to update username if user changes username
-  const user = await User.findByIdAndUpdate(req.user.addr, req.body, {
+  const user = await User.findByIdAndUpdate(req.user.sub, req.body, {
     new: true,
   });
 

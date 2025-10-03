@@ -1,25 +1,22 @@
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 import { Provider } from "react-redux";
-import appStore from "./store/appStore";
-
-import * as process from "process";
-
-window.global = window;
-window.process = process;
-window.Buffer = [];
+import store from "./store/appStore";
+import { AptosProvider } from "./providers/AptosProvider";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
-  // <React.StrictMode>
-   
-  <Provider store={appStore}>
-    <App />
-  </Provider>
-
-  // </React.StrictMode>
+  <React.StrictMode>
+    <Provider store={store}>
+      <AptosProvider>
+        <App />
+      </AptosProvider>
+    </Provider>
+  </React.StrictMode>
 );
 
+reportWebVitals();

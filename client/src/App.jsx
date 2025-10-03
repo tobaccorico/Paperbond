@@ -15,7 +15,7 @@ import useAppHeight from "./hooks/useAppHeight";
 function App() {
   // Still initializes whatever your app needs (store, sockets, etc.)
   useInit();
-  const modalType = useSelector((state: any) => state.modalReducer.type);
+  const modalType = useSelector((state) => state.modalReducer.type);
   useAppHeight();
 
   return (

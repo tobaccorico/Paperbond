@@ -17,14 +17,12 @@ exports.getChatRoom = catchAsyncError(async (req, res, next) => {
 });
 
 exports.getChatRoomSummaryForUser = catchAsyncError(async (req, res, next) => {
-  // Get user
-  const user = await User.findById(req.user.addr);
+  const user = await User.findById(req.user.sub);
 
   let chatRoomSummary = await Promise.all(
     user.chatRooms.map(async (chatRoomId) => {
       const outputSummary = {};
 
-      // Get chatRoom object
       const chatRoom = await ChatRoom.findById(chatRoomId).populate({
         path: "members",
         select: "id username avatar bio status",
@@ -32,16 +30,13 @@ exports.getChatRoomSummaryForUser = catchAsyncError(async (req, res, next) => {
 
       if (!chatRoom) return next(new ReqError("Chat room can't be found"));
 
-      // If there are messages in the room message in chatRoom
       if (chatRoom.messageHistory.length) {
-        // Get chatRoom latest message
         const lastDay =
           chatRoom.messageHistory[chatRoom.messageHistory.length - 1];
 
         outputSummary.latestMessage =
           lastDay.messages[lastDay.messages.length - 1];
 
-        // Get how many messages are unread by user in the chatRoom
         outputSummary.unreadMessagesCount = user.unreadMessages.reduce(
           (acc, curr) => {
             if (chatRoomId.toString() === curr.chatRoomId.toString())
@@ -56,11 +51,9 @@ exports.getChatRoomSummaryForUser = catchAsyncError(async (req, res, next) => {
         outputSummary.unreadMessagesCount = 0;
       }
 
-      // Attach chatRoomId
       outputSummary.chatRoomId = chatRoomId;
       outputSummary.roomType = chatRoom.roomType;
 
-      // If roomType is private
       if (chatRoom.roomType === "Private") {
         const profile = chatRoom.members.find(
           (member) => user._id.toString() !== member._id.toString()
@@ -75,7 +68,6 @@ exports.getChatRoomSummaryForUser = catchAsyncError(async (req, res, next) => {
 
       outputSummary.mode = null;
 
-      // Check if chat is pinned
       outputSummary.pinned = user.pinnedChatRooms.some(
         (chatRoom) => chatRoom.toString() === chatRoomId.toString()
       );
@@ -84,7 +76,6 @@ exports.getChatRoomSummaryForUser = catchAsyncError(async (req, res, next) => {
     })
   );
 
-  // Get all pinned chats and sort based on newest message
   const pinnedChats = chatRoomSummary
     .filter((chatRoom) => chatRoom.pinned)
     .sort((a, b) => {
@@ -94,7 +85,6 @@ exports.getChatRoomSummaryForUser = catchAsyncError(async (req, res, next) => {
       return latestMessageInBTime - latestMessageInATime;
     });
 
-  // Get all unpinned chats and sort based on newest message
   const unpinnedChats = chatRoomSummary
     .filter((chatRoom) => !chatRoom.pinned)
     .sort((a, b) => {
@@ -104,7 +94,6 @@ exports.getChatRoomSummaryForUser = catchAsyncError(async (req, res, next) => {
       return latestMessageInBTime - latestMessageInATime;
     });
 
-  // Concatenate both arrays
   chatRoomSummary = [...pinnedChats, ...unpinnedChats];
 
   res.status(200).json({
@@ -116,7 +105,7 @@ exports.getChatRoomSummaryForUser = catchAsyncError(async (req, res, next) => {
 });
 
 exports.pinChatRoom = catchAsyncError(async (req, res, next) => {
-  const user = await User.findById(req.user.addr);
+  const user = await User.findById(req.user.sub);
   user.pinnedChatRooms.push(req.params.chatRoomId);
   await user.save();
 
@@ -129,7 +118,7 @@ exports.pinChatRoom = catchAsyncError(async (req, res, next) => {
 });
 
 exports.unpinChatRoom = catchAsyncError(async (req, res, next) => {
-  const user = await User.findById(req.user.addr);
+  const user = await User.findById(req.user.sub);
   user.pinnedChatRooms = user.pinnedChatRooms.filter(
     (chatRoomId) => chatRoomId.toString() !== req.params.chatRoomId
   );
@@ -145,8 +134,6 @@ exports.unpinChatRoom = catchAsyncError(async (req, res, next) => {
 
 exports.checkIfChatRoomExists = async (user, secondaryUser) => {
   let chatRoomId;
-  // secondaryUser is the user not performing the action
-  // Chat room exists if secondaryUser already has user as a contact
   secondaryUser.contacts.forEach((contact) => {
     if (contact.contactDetails.toString() === user._id.toString()) {
       chatRoomId = contact.chatRoomId;
@@ -182,42 +169,33 @@ exports.clearChatRoom = async ({ chatRoomId }) => {
   await chatRoom.save();
 };
 
-// Get all chat room user belongs to
 exports.getAllChatRoomUserIn = async (userId) => {
   const user = await User.findById(userId);
   return user.chatRooms;
 };
 
-// Add message to chatroom
 exports.addMessageToChatRoom = async (chatRoomId, message) => {
   const chatRoom = await ChatRoom.findById(chatRoomId);
 
-  // Get last chatRoom day message
   const lastDayMessage =
     chatRoom.messageHistory[chatRoom.messageHistory.length - 1];
 
-  // Get day message was sent
   const dayString = new Date(message.timeSent).toLocaleString("en-US", {
     month: "long",
     day: "2-digit",
     year: "numeric",
   });
 
-  // Convert day string to milliseconds
   const day = new Date(dayString).getTime();
 
-  // Add list of all members to message undelivered and unread members
   message.undeliveredMembers = chatRoom.members;
   message.unreadMembers = chatRoom.members.filter(
     (memberId) => memberId.toString() !== message.sender.toString()
   );
 
-  // Check if day is today
   if (lastDayMessage?.day === day) {
-    // Add to object if day is today
     lastDayMessage.messages.push(message);
   } else {
-    // Else create new object for day
     const newDayObject = {
       day,
       messages: [message],
@@ -227,7 +205,6 @@ exports.addMessageToChatRoom = async (chatRoomId, message) => {
 
   await chatRoom.save();
 
-  // Return message object included with message id
   const messageObj =
     chatRoom.messageHistory[chatRoom.messageHistory.length - 1].messages[
       chatRoom.messageHistory[chatRoom.messageHistory.length - 1].messages
@@ -238,17 +215,14 @@ exports.addMessageToChatRoom = async (chatRoomId, message) => {
 };
 
 exports.getMessageFromChatRoom = async ({ chatRoomId, messageId, day }) => {
-  // Get chat room
   const chatRoom = await ChatRoom.findById(chatRoomId);
 
   if (!chatRoom.messageHistory.length) return {};
 
-  // Get dayMessages
   const dayMessage = chatRoom.messageHistory.find(
     (dayMessage) => dayMessage.day === day
   );
 
-  // Get message obj
   const message = dayMessage.messages.find(
     (message) => message._id.toString() === messageId.toString()
   );
@@ -256,7 +230,6 @@ exports.getMessageFromChatRoom = async ({ chatRoomId, messageId, day }) => {
   return { chatRoom, message };
 };
 
-// Check member off undelivered list in message
 exports.checkMembersOffUndeliveredListInMessage = async ({
   membersId,
   messageId,
@@ -279,7 +252,6 @@ exports.checkMembersOffUndeliveredListInMessage = async ({
   if (!message.undeliveredMembers.length) {
     message.deliveredStatus = true;
 
-    // Emit message been delivered
     io.to(chatRoomId).emit("user:messageDelivered", {
       messageId: message._id,
       senderId: message.sender,
@@ -296,7 +268,6 @@ exports.checkMembersOffUndeliveredListInMessage = async ({
   };
 };
 
-// Add message as unread to users
 exports.addMessageAsUndeliveredToUser = async ({
   undeliveredMembers,
   chatRoomId,
@@ -306,7 +277,6 @@ exports.addMessageAsUndeliveredToUser = async ({
   for (let memberId of undeliveredMembers) {
     const memberModel = await User.findById(memberId.toString());
 
-    // If message hasn't been added as undelivered before, add
     memberModel.undeliveredMessages.push({
       day,
       chatRoomId,
@@ -336,7 +306,6 @@ exports.addMessageAsUnreadToUser = async ({
   }
 };
 
-// Mark messages as read by user
 exports.markMessageAsReadByUser = async ({
   messageId,
   chatRoomId,
@@ -365,7 +334,6 @@ exports.markMessageAsReadByUser = async ({
   if (!message.unreadMembers.length) {
     message.readStatus = true;
 
-    // Emit message as been read by all members
     io.to(chatRoomId).emit("user:messageReadByAllMembers", {
       messageId: message._id,
       senderId: message.sender,

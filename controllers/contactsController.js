@@ -8,8 +8,7 @@ const {
 } = require("./chatRoomController");
 
 exports.getAllContacts = catchAsyncError(async (req, res, next) => {
-  // Id is gotten from cookies, so as to get user contacts
-  const user = await User.findById(req.user.addr).populate({
+  const user = await User.findById(req.user.sub).populate({
     path: "contacts.contactDetails",
     select: "id username bio avatar status",
   });
@@ -27,36 +26,28 @@ exports.getAllContacts = catchAsyncError(async (req, res, next) => {
 exports.addNewContact = catchAsyncError(async (req, res, next) => {
   const { name, username } = req.body;
 
-  // Validate input
   if (!username) return next(new ReqError(400, "Contact username is needed"));
 
-  // Get models for both users
-  const user = await User.findById(req.user.addr);
+  const user = await User.findById(req.user.sub);
   const newContact = await User.findOne({ username: username });
 
-  // Validate models existence
   if (!newContact) return next(new ReqError(400, "User does not exist"));
   if (user.username === newContact.username)
     return next(new ReqError(400, "You can't add yourself as a contact"));
 
-  // Validate addition of contacts
   for (let contact of user.contacts) {
-    // Check if contact exists already
     if (contact.contactDetails.toString() === newContact._id.toString()) {
       return next(new ReqError(400, "Contact exists already"));
     }
 
-    // Check if contact name exists and rename
     if (contact.name === name) {
       return next(new ReqError(400, "Contact name exists already"));
     }
   }
 
-  // Check if chat room exists between users i.e check if newContact already has user as a contact
   let chatRoomId = await checkIfChatRoomExists(user, newContact);
 
   if (!chatRoomId) {
-    // Create a chat room for both users
     const chatRoomDetails = {
       roomType: "Private",
       members: [newContact._id, user._id],
@@ -70,7 +61,6 @@ exports.addNewContact = catchAsyncError(async (req, res, next) => {
 
     chatRoomId = newChatRoom._id;
 
-    // Add chatRoomId to chatRooms both user belongs to
     user.chatRooms.push(chatRoomId);
     newContact.chatRooms.push(chatRoomId);
   }
@@ -81,7 +71,6 @@ exports.addNewContact = catchAsyncError(async (req, res, next) => {
     chatRoomId,
   };
 
-  // Add to contacts
   user.contacts.push(newContactData);
 
   await user.save({ validateBeforeSave: false });
@@ -108,22 +97,17 @@ exports.addNewContact = catchAsyncError(async (req, res, next) => {
 exports.deleteContact = catchAsyncError(async (req, res, next) => {
   const { username } = req.body;
 
-  // Validate request
   if (!username) return next(new ReqError(400, "Contact username is missing"));
 
-  // Get models
-  const user = await User.findById(req.user.addr);
+  const user = await User.findById(req.user.sub);
   const aimedContact = await User.findOne({ username: username });
 
-  // Validate models
   if (!aimedContact) return next(new ReqError(400, "User does not exist"));
 
   let chatRoomId;
 
-  // Get aimed contact id
   const id = aimedContact._id.toString();
 
-  // Remove contact
   user.contacts = user.contacts.filter((contact) => {
     if (contact.contactDetails.toString() === id) {
       chatRoomId = contact.chatRoomId;
@@ -133,12 +117,10 @@ exports.deleteContact = catchAsyncError(async (req, res, next) => {
     return true;
   });
 
-  // Check if other user still has you as a contact, if so don't delete chatRoom from database else delete it
   const chatRoomExists = await checkIfChatRoomExists(user, aimedContact);
 
   if (!chatRoomExists) {
     await deleteChatRoom(chatRoomId);
-    // Remove chat room from user chat rooms
     user.chatRooms = user.chatRooms.filter(
       (roomId) => roomId.toString() !== chatRoomId.toString()
     );

@@ -1,14 +1,20 @@
 {
   "name": "client",
-  "proxy": "http://localhost:4000",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@aptos-labs/ts-sdk": "^5.1.0",
+    "@aptos-labs/wallet-adapter-ant-design": "^5.2.0",
+    "@aptos-labs/wallet-adapter-react": "^7.0.0",
+    "@aptos-labs/wallet-standard": "^0.5.2",
     "@reduxjs/toolkit": "^1.8.6",
+    "@tanstack/react-query": "^5.59.16",
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "buffer": "^6.0.3",
     "cloudinary-react": "^1.8.1",
+    "crypto-browserify": "^3.12.1",
     "emoji-picker-react": "^4.3.0",
     "formik": "^2.2.9",
     "framer-motion": "^7.5.3",
@@ -19,17 +25,16 @@
     "react-media-recorder": "^1.6.6",
     "react-redux": "^8.0.4",
     "react-router-dom": "^6.4.2",
-    "react-scripts": "5.0.1",
     "simple-peer": "^9.11.1",
     "socket.io-client": "^4.5.3",
+    "stream-browserify": "^3.0.0",
     "web-vitals": "^2.1.4",
     "yup": "^0.32.11"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "eslintConfig": {
     "extends": [
@@ -50,8 +55,10 @@
     ]
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.12",
     "postcss": "^8.4.17",
-    "tailwindcss": "^3.1.8"
+    "tailwindcss": "^3.1.8",
+    "vite": "^5.4.11"
   }
 }

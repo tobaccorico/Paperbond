@@ -1,146 +1,170 @@
-import React from "react";
-import { connectWallet, getAddress, signLoginMessage } from "../hooks/useAptos";
+import React, { useEffect } from "react";
+import { useWallet } from "@aptos-labs/wallet-adapter-react";
+import { useDispatch } from "react-redux";
+import { authActions } from "../store/authSlice";
+import Spinner from "../components/globals/Spinner";
 
 export default function LoginAptos() {
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState("");
-  const [address, setAddress] = React.useState("");
+  const { wallets, connect, account, connected, signMessage } = useWallet();
+  const dispatch = useDispatch();
+  const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+  const [error, setError] = React.useState(null);
 
-  async function handleConnect() {
-    try {
-      setError("");
-      setLoading(true);
-      const addr = await connectWallet();
-      setAddress(addr);
-    } catch (e) {
-      setError(e?.message || "Wallet connect failed");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    console.log("Wallet state changed:", {
+      connected,
+      hasAccount: !!account,
+      address: account?.address,
+      publicKey: account?.publicKey,
+    });
+  }, [connected, account]);
+
+  useEffect(() => {
+    if (connected && account?.address && !isAuthenticating) {
+      console.log("Triggering authentication flow...");
+      handleAuthentication();
     }
-  }
+  }, [connected, account]);
 
-  function isHexString(s) {
-    return typeof s === "string" && /^[0-9a-fA-F]+$/.test(s);
-  }
-  function toHex0xFromBytes(u8) {
-    return "0x" + Array.from(u8).map(b => b.toString(16).padStart(2, "0")).join("");
-  }
-  function tryBase64ToHex0x(s) {
+  const handleAuthentication = async () => {
+    console.log("Starting authentication...");
+    setIsAuthenticating(true);
+    setError(null);
+
     try {
-      const bin = atob(s);
-      const u8 = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-      return toHex0xFromBytes(u8);
-    } catch (_) {
-      return null;
-    }
-  }
+      const address = account.address.toString();
+      const publicKey = account.publicKey.toString();
+      
+      console.log("1. Getting nonce for address:", address);
 
-  async function handleLogin() {
-    try {
-      setError("");
-      setLoading(true);
+      const nonceRes = await fetch("/api/auth/nonce", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
 
-      // 1) get nonce
-      const nonceRes = await fetch("/api/auth/nonce", { method: "POST" });
-      if (!nonceRes.ok) throw new Error("Failed to get nonce");
+      if (!nonceRes.ok) {
+        const errData = await nonceRes.json();
+        throw new Error(errData.error || "Failed to get nonce");
+      }
+
       const { nonce } = await nonceRes.json();
+      console.log("2. Received nonce:", nonce);
 
-      // 2) sign canonical message
-      const signed = await signLoginMessage({
-        message: "Sign in to Telegram Clone",
-        nonce,
-        application: "Telegram-Clone",
-        chainId: 1,
-      });
+      const message = `Welcome to Paperbond!\n\nSign this message to authenticate.\n\nNonce: ${nonce}`;
+      
+      console.log("3. Using Petra native API for signing...");
+      
+      // Use Petra's native signMessage instead of wallet adapter
+      if (!window.aptos) {
+        throw new Error("Petra wallet not found");
+      }      
 
-      // 2a) normalize signature to 0x-hex
-      let sig = signed?.signature;
-      if (sig instanceof Uint8Array) {
-        sig = toHex0xFromBytes(sig);
-      } else if (typeof sig === "string") {
-        if (sig.startsWith("0x")) {
-          // ok
-        } else if (isHexString(sig)) {
-          sig = "0x" + sig;
-        } else {
-          const asHex = tryBase64ToHex0x(sig);
-          if (asHex) sig = asHex;
-        }
-      }
-
-      // 2b) get public key and normalize to 0x-hex
-      // some wallets don't return pk in signMessage; pull from account()
-      let pk = signed?.publicKey;
-      if (!pk && window.aptos?.account) {
-        try {
-          const acc = await window.aptos.account();
-          pk = acc?.publicKey;
-        } catch {}
-      }
-      if (pk && typeof pk === "string" && !pk.startsWith("0x") && isHexString(pk)) {
-        pk = "0x" + pk;
-      }
-
-      const addr = signed?.address || address;
-
-      console.log("verify payload preview:", {
-        address: addr,
-        publicKeyLen: pk?.length,
-        signatureLen: sig?.length,
-        signatureStarts: typeof sig === "string" ? sig.slice(0, 6) : "(non-string)",
-        hasFullMessage: !!signed?.fullMessage,
+      const signResponse = await window.aptos.signMessage({
+        message,
         nonce,
       });
 
-      // 3) verify on server
+      console.log("4. Full signature response:", signResponse);
+      console.log("4a. fullMessage:", signResponse.fullMessage);
+      console.log("4b. fullMessage length:", signResponse.fullMessage?.length);
+      console.log("4c. Original message:", message);
+      console.log("4d. Original message length:", message.length);
+
+      console.log("5. Verifying signature with backend...");
       const verifyRes = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          address: addr,
-          publicKey: pk,
-          signature: sig,
-          fullMessage: signed?.fullMessage,
+          address,
+          publicKey,
+          signature: signResponse.signature,
+          message: signResponse.fullMessage, // Use fullMessage, not the original message
           nonce,
         }),
       });
 
       if (!verifyRes.ok) {
-        const txt = await verifyRes.text();
-        throw new Error(txt || "Verify failed");
+        const errData = await verifyRes.json();
+        throw new Error(errData.error || "Authentication failed");
       }
 
-      window.location.href = "/";
-    } catch (e) {
-      setError(e?.message || "Login failed");
-    } finally {
-      setLoading(false);
+      const { user } = await verifyRes.json();
+      console.log("6. Authentication successful! User:", user);
+
+      dispatch(authActions.login());
+    } catch (err) {
+      console.error("Authentication error:", err);
+      setError(err.message);
+      setIsAuthenticating(false);
     }
-  }
+  };
+
+  const handleWalletClick = async (walletName) => {
+    console.log("Connecting to wallet:", walletName);
+    try {
+      setError(null);
+      await connect(walletName);
+      console.log("Connect call completed");
+    } catch (err) {
+      console.error("Connection error:", err);
+      setError(err.message);
+    }
+  };
+
+  console.log("Rendering LoginAptos. Available wallets:", wallets?.length);
 
   return (
-    <div className="flex flex-col items-center gap-4 p-8">
-      <h1 className="text-2xl font-semibold">Sign in with Aptos</h1>
+    <div className="chat-bg w-full h-full flex items-center justify-center px-[1rem]">
+      <div className="basis-[35rem] bg-primary p-8 rounded-xl shadow-lg">
+        <h1 className="text-cta-icon font-semibold text-[2rem] uppercase mb-[2rem]">
+          Connect Wallet
+        </h1>
+        
+        <p className="text-secondary-text mb-6">
+          Connect your Aptos wallet to sign in to Paperbond
+        </p>
 
-      <button
-        onClick={handleConnect}
-        className="px-4 py-2 rounded bg-blue-600 text-white"
-        disabled={loading}
-      >
-        {address ? `Connected: ${address.slice(0, 6)}…${address.slice(-4)}` : "Connect Wallet"}
-      </button>
+        {error && (
+          <div className="bg-danger/10 border border-danger text-danger p-4 rounded-lg mb-4">
+            {error}
+          </div>
+        )}
 
-      <button
-        onClick={handleLogin}
-        disabled={!address || loading}
-        className="px-4 py-2 rounded bg-green-600 text-white disabled:opacity-50"
-      >
-        {loading ? "Signing..." : "Sign Message to Continue"}
-      </button>
+        {isAuthenticating && (
+          <div className="text-center py-8">
+            <Spinner className="w-12 h-12 mx-auto mb-4" />
+            <p className="text-secondary-text">Authenticating...</p>
+          </div>
+        )}
 
-      {!!error && <p className="text-red-500 text-sm">{error}</p>}
+        {!isAuthenticating && (
+          <div className="flex flex-col gap-3">
+            {wallets?.map((wallet) => (
+              <button
+                key={wallet.name}
+                onClick={() => handleWalletClick(wallet.name)}
+                disabled={isAuthenticating}
+                className="bg-secondary hover:bg-secondary/80 p-4 rounded-xl flex items-center gap-4 transition-all disabled:opacity-50"
+              >
+                {wallet.icon && (
+                  <img src={wallet.icon} alt={wallet.name} className="w-10 h-10 rounded-lg" />
+                )}
+                <div className="flex-1 text-left">
+                  <div className="font-semibold text-primary-text">{wallet.name}</div>
+                </div>
+              </button>
+            ))}
+
+            {(!wallets || wallets.length === 0) && (
+              <div className="text-center py-8">
+                <p className="text-secondary-text mb-4">No Aptos wallets detected</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

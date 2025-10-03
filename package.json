@@ -19,8 +19,8 @@
   "license": "ISC",
   "homepage": "https://github.com/tobaccorico/Paperbond",
   "dependencies": {
-    "@noble/ed25519": "^3.0.0",
-    "@noble/hashes": "^2.0.1",
+    "@noble/ed25519": "^1.7.3",
+    "@noble/hashes": "^1.3.3",
     "bcrypt": "^5.1.0",
     "cloudinary": "^1.33.0",
     "cookie-parser": "^1.4.6",
@@ -30,8 +30,7 @@
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^6.7.1",
     "socket.io": "^4.5.3",
+    "tweetnacl": "^1.0.3",
     "uuid": "^13.0.0"
   }
 }
-
-
