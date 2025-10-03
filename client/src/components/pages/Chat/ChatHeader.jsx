@@ -1,6 +1,5 @@
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
-import useChat from "../../../hooks/useChat";
 import useTime from "../../../hooks/useTime";
 import { chatActions } from "../../../store/chatSlice";
 import { modalActions } from "../../../store/modalSlice";
@@ -9,11 +8,14 @@ import Header from "../../globals/Header";
 import IconWrapper from "../../globals/IconWrapper";
 import Image from "../../globals/Image";
 import ActionsModal from "./ActionsModal";
+import GroupTokenBadge from "./GroupTokenBadge";
 
 function ChatHeader({ chatProfile, className }) {
   const dispatch = useDispatch();
   const chatActive = useSelector((state) => state.chatReducer.active);
+  const currentChatRoom = useSelector((state) => state.chatReducer.currentChatRoom);
   const lastSeenTime = useTime(chatProfile?.status?.lastSeen);
+  const isGroupChat = currentChatRoom.roomType === "Group";
 
   return (
     <Header
@@ -46,20 +48,19 @@ function ChatHeader({ chatProfile, className }) {
             />
           </svg>
         </IconWrapper>
-        {/*  */}
+        
         <div
           onClick={(event) => {
             if (window.innerWidth <= 1000) {
               if (chatActive) {
                 event.stopPropagation();
-
                 dispatch(userProfileActions.showProfile());
               }
             } else {
               dispatch(userProfileActions.showProfile());
             }
           }}
-          className="flex-grow flex items-center  gap-[1.5rem] cursor-pointer"
+          className="flex-grow flex items-center gap-[1.5rem] cursor-pointer"
         >
           <Image
             src={chatProfile.avatar}
@@ -70,13 +71,18 @@ function ChatHeader({ chatProfile, className }) {
             <h2 className="font-semibold">
               {chatProfile.name || chatProfile.username}
             </h2>
-            {chatProfile.mode && (
+            
+            {isGroupChat && currentChatRoom._id && (
+              <GroupTokenBadge groupChatId={currentChatRoom._id} />
+            )}
+            
+            {!isGroupChat && chatProfile.mode && (
               <span className="text-cta-icon italic text-[1.4rem] font-normal -translate-y-[.4rem]">
-                {chatProfile.mode} {chatProfile.mode === "recording" && "audio"}
-                ...
+                {chatProfile.mode} {chatProfile.mode === "recording" && "audio"}...
               </span>
             )}
-            {!chatProfile.mode && (
+            
+            {!isGroupChat && !chatProfile.mode && (
               <span className="text-secondary text-[1.4rem] font-normal -translate-y-[.4rem]">
                 {chatProfile.status?.online
                   ? "online"
@@ -86,6 +92,7 @@ function ChatHeader({ chatProfile, className }) {
           </div>
         </div>
       </div>
+      
       <IconWrapper
         onClick={() => {
           dispatch(

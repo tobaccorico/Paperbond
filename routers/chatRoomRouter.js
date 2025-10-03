@@ -5,6 +5,8 @@ const router = express.Router();
 
 router.route("/summary").get(chatRoomController.getChatRoomSummaryForUser);
 
+router.post("/create-group", chatRoomController.createGroupChat); 
+
 router
   .route("/:chatRoomId")
   .get(chatRoomController.getChatRoom)

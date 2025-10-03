@@ -9,7 +9,7 @@ export function AptosProvider({ children }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AptosWalletAdapterProvider
-        autoConnect={false}
+        autoConnect={true}
         dappConfig={{
           network: Network.TESTNET,
           // Disable Aptos Connect (social logins)

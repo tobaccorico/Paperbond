@@ -4,6 +4,8 @@ import NewContactForm from "./components/globals/NewContactForm";
 import Sidebar from "./components/globals/Sidebar";
 import VoiceCallModal from "./components/globals/VoiceCallModal";
 import VideoCallModal from "./components/globals/VideoCallModal";
+import CreateGroupModal from "./components/pages/Chat/CreateGroupModal";
+
 import AuthGate from "./components/globals/AuthGate";
 import Notification from "./components/globals/Notification";
 import Chat from "./pages/Chat";
@@ -17,9 +19,21 @@ function App() {
   useInit();
   const modalType = useSelector((state) => state.modalReducer.type);
   useAppHeight();
-
+  const forceLogout = async () => {
+    await fetch("/api/auth/logout", { 
+      method: "POST", 
+      credentials: "include" 
+    });
+    window.location.reload();
+  };
   return (
     <AuthGate>
+      <button 
+        onClick={forceLogout}
+        className="fixed bottom-4 left-4 z-50 bg-danger text-white px-4 py-2 rounded"
+      >
+        Force Logout
+      </button>
       <div className="w-full h-full flex overflow-hidden bg-primary relative">
         {/* Sidebar + Chat + Profile are only visible when authed because of AuthGate */}
         <Sidebar />
@@ -35,6 +49,7 @@ function App() {
         <NewContactForm />
         {modalType === "voiceCallModal" && <VoiceCallModal />}
         {modalType === "videoCallModal" && <VideoCallModal />}
+        {modalType === "createGroupModal" && <CreateGroupModal />}
       </div>
     </AuthGate>
   );

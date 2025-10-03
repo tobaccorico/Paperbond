@@ -148,35 +148,23 @@ module algotoken::core {
     // ============= Initialization =============
 
     public entry fun initialize<StableCoin>(
-        admin: &signer,
-        initial_k: u128,
-        initial_bear_seconds: u64,
-        initial_peg_padding: u64,
-        min_seconds_bond_update: u64,
+    admin: &signer,
+    initial_k: u128,
+    initial_bear_seconds: u64,
+    initial_peg_padding: u64,
+    min_seconds_bond_update: u64,
     ) {
         let admin_addr = signer::address_of(admin);
         assert!(!exists<AlgoTokenState>(admin_addr), E_ALREADY_INITIALIZED);
         assert!(initial_k >= PRECISION, E_INVALID_PARAMETER);
 
-        // Create resource account for holding reserves
-        let (resource_signer, signer_cap) = account::create_resource_account(admin, b"algotoken_reserves");
-        let resource_addr = signer::address_of(&resource_signer);
-        
-        // Register resource account for stablecoin
-        coin::register<StableCoin>(&resource_signer);
-        
-        // Store signer capability
-        move_to(admin, ResourceAccountCap {
-            signer_cap,
-        });
-
-        // Initialize AlgoToken
+        // Initialize coin directly on admin's account
         let (burn_cap, freeze_cap, mint_cap) = coin::initialize<AlgoToken>(
             admin,
             string::utf8(b"AlgoToken"),
             string::utf8(b"ALGO"),
             8,
-            false, // monitor_supply = false to avoid FA complications in tests
+            false,
         );
 
         let initial_price = PRECISION;
@@ -187,7 +175,7 @@ module algotoken::core {
             burn_cap,
             freeze_cap,
             stablecoin_type: type_info::type_of<StableCoin>(),
-            resource_account_addr: resource_addr,
+            resource_account_addr: admin_addr,  // Just use admin address directly
             price: initial_price,
             ath_price: initial_price,
             circ_supply: 0,
@@ -1176,6 +1164,12 @@ module algotoken::core {
 
     #[test_only]
     public fun test_initialize<StableCoin>(admin: &signer) {
-        initialize<StableCoin>(admin, 1200000000000000000, 63072000, 10000000000, 2592000);
+        initialize<StableCoin>(
+            admin,
+            1200000000000000000,
+            63072000,
+            10000000000,
+            2592000
+        );
     }
 }

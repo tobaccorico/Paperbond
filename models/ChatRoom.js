@@ -23,13 +23,9 @@ const MessageSchema = new mongoose.Schema({
   undeliveredMembers: [mongoose.Schema.Types.ObjectId],
   unreadMembers: [mongoose.Schema.Types.ObjectId],
   timeSent: Date,
-  // If text message was sent
   message: String,
-  // If image was sent
   imageUrl: String,
-  // If call was made
   callDetails: callDetailSchema,
-  // If voice note was sent
   voiceNoteUrl: String,
   voiceNoteDuration: String,
 });
@@ -41,6 +37,12 @@ const Schema = new mongoose.Schema({
   },
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   messageHistory: [{ day: Number, messages: [MessageSchema] }],
+  algoToken: {
+    moduleAddress: String,  // Changed from instanceAddress
+    createdBy: mongoose.Schema.Types.ObjectId,
+    createdAt: Date,
+    isActive: { type: Boolean, default: false },
+  },
 });
 
 module.exports = mongoose.model("ChatRoom", Schema);

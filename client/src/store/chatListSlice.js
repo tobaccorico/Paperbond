@@ -125,6 +125,36 @@ const chatList = createSlice({
         state.push(payload.newChat);
       }
     },
+    addChatRoom: (state, { payload }) => {
+      const currentState = current(state);
+      
+      if (currentState.some(chat => chat.chatRoomId === payload._id)) {
+        return;
+      }
+      
+      const newChatRoom = {
+        chatRoomId: payload._id,
+        roomType: payload.roomType,
+        members: payload.members,
+        profile: {
+          _id: payload._id,
+          name: payload.name || "New Group",
+          avatar: payload.avatar || "",
+          username: payload.name || "Group Chat"
+        },
+        latestMessage: {
+          _id: "temp-" + Date.now(),
+          message: "Group created",
+          timeSent: new Date().toISOString(),
+          sender: null,
+          messageType: "text",
+        },
+        unreadMessagesCount: 0,
+        pinned: false,
+      };
+      
+      state.unshift(newChatRoom);
+    },
     removeFromChatList: (state, { payload }) => {
       const currentState = current(state);
       const chatRoomIndex = currentState.findIndex(

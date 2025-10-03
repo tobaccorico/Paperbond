@@ -1,0 +1,5 @@
+{
+  "network": "testnet",
+  "deployerAddress": "0x580ab668ae920138bb0c9d7a953e066be06b025ed819ead7cc083b17a99536fd",
+  "stablecoinType": "0x580ab668ae920138bb0c9d7a953e066be06b025ed819ead7cc083b17a99536fd::mock_usdc::MockUSDC"
+}

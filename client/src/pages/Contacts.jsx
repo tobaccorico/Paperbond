@@ -50,7 +50,7 @@ function Contacts() {
             <ContactItem key={contact._id} contact={contact} />
           ))}
         {!contacts.length && (
-          <div className="flex flex-col py-[2rem] items-center uppercase">
+          <div className="flex flex-col py-[2rem] items-center uppercase gap-[1rem]">
             <button
               onClick={() =>
                 dispatch(
@@ -60,10 +60,19 @@ function Contacts() {
                   })
                 )
               }
-              className={`bg-cta-icon mt-[5rem] p-[1rem] rounded-xl uppercase text-white font-semibold opacity-80 flex items-center justify-center`}
+              className="bg-cta-icon mt-[5rem] p-[1rem] rounded-xl uppercase text-white font-semibold opacity-80 flex items-center justify-center"
               type="submit"
             >
               Add Contacts Now
+            </button>
+            
+            <div className="text-secondary text-[1.2rem] my-[1rem]">OR</div>
+            
+            <button
+              onClick={() => dispatch(modalActions.openModal({ type: "createGroupModal" }))}
+              className="bg-primary border-2 border-cta-icon p-[1rem] rounded-xl uppercase text-cta-icon font-semibold opacity-80 flex items-center justify-center"
+            >
+              Create Test Group
             </button>
           </div>
         )}

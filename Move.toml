@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-algotoken = "0x848efb12b546bb02848db128300474917091a81bc5d5c726e804955fd73bd9fa"
+algotoken = "0x580ab668ae920138bb0c9d7a953e066be06b025ed819ead7cc083b17a99536fd"
 
 [dev-addresses]
 

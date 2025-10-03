@@ -345,3 +345,30 @@ exports.markMessageAsReadByUser = async ({
   await chatRoom.save();
   await user.save();
 };
+
+exports.createGroupChat = catchAsyncError(async (req, res, next) => {
+  const { name, members } = req.body;
+  const userId = req.user.sub;
+
+  const memberIds = members || [];
+  if (!memberIds.includes(userId)) {
+    memberIds.push(userId);
+  }
+
+  const chatRoom = await ChatRoom.create({
+    roomType: "Group",
+    members: memberIds,
+    messageHistory: [],
+    algoToken: {
+      isActive: false
+    }
+  });
+
+  // Populate members with full user data
+  await chatRoom.populate('members', 'username avatar name');
+
+  res.status(201).json({
+    status: "success",
+    data: { chatRoom }
+  });
+});
