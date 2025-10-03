@@ -1,7 +1,9 @@
 const express = require("express");
 const path = require("path");
 const dotenv = require("dotenv");
+
 const mongoose = require("mongoose");
+mongoose.set("strictQuery", true);
 
 // Load env FIRST
 dotenv.config({ path: "./.env" });

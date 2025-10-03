@@ -10,6 +10,7 @@ const baseURL = rawBase.replace(/\/$/, "") || undefined;
 // Good for both same-origin and cross-origin; harmless if same-origin.
 const socket = io(baseURL, {
   withCredentials: true,
+  autoConnect: false,
 });
 
 // Optional: basic diagnostics

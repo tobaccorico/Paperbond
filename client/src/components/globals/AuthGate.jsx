@@ -1,12 +1,11 @@
-// client/src/components/AuthGate.tsx
+// client/src/components/globals/AuthGate.jsx
 import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import useSocket from "../../hooks/useSocket";
+import LoginAptos from "../../pages/LoginAptos"; // we’ll render this directly if unauth'd
 
-type Status = "loading" | "ok" | "nope";
-
-export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const [status, setStatus] = React.useState<Status>("loading");
-  const loc = useLocation();
+export default function AuthGate({ children }) {
+  const [status, setStatus] = React.useState("loading"); // "loading" | "ok" | "nope"
+  const { socket } = useSocket();
 
   React.useEffect(() => {
     let alive = true;
@@ -14,22 +13,17 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       try {
         const res = await fetch("/api/me", { credentials: "include" });
         if (!alive) return;
-        setStatus(res.ok ? "ok" : "nope");
+        const ok = res.ok;
+        setStatus(ok ? "ok" : "nope");
+        if (ok && socket && !socket.connected) socket.connect(); // connect socket only after auth
       } catch {
         if (alive) setStatus("nope");
       }
     })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+    return () => { alive = false; };
+  }, [socket]);
 
-  if (status === "loading") return null; // or a spinner
-  if (status === "nope") {
-    // keep where the user tried to go, so we can come back after login
-    const to = "/login-aptos";
-    return <Navigate to={to} state={{ from: loc }} replace />;
-  }
-
+  if (status === "loading") return null;      // or a spinner
+  if (status === "nope") return <LoginAptos />; // no router dependency at all
   return <>{children}</>;
 }

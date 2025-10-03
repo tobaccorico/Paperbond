@@ -1,131 +1,98 @@
+// controllers/authController.js
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const { verifyEd25519Flexible } = require("../utilities/aptosVerify");
 const User = require("../models/User");
-const ReqError = require("../utilities/ReqError");
-const jwt = require("jsonwebtoken");
-const catchAsyncError = require("../utilities/catchAsyncError");
 
-const { randomUUID } = require("crypto");
-const jwt = require("jsonwebtoken");
-const { verifyAptosSignature } = require("../utilities/aptosVerify");
-
+// Simple in-memory nonce store for dev:
+// Map<lowercase address, { nonce: string, expires: number }>
 const nonces = new Map();
+const NONCE_TTL_MS = 5 * 60 * 1000;
 
 exports.getNonce = async (req, res) => {
-  const nonce = randomUUID();
-  nonces.set(nonce, Date.now());
-  // expire old nonces
-  for (const [n, ts] of nonces) {
-    if (Date.now() - ts > 5 * 60 * 1000) nonces.delete(n);
-  }
+  const nonce = crypto.randomBytes(16).toString("hex");
+  // We don't know the address yet; client will send it on /verify along with the nonce.
+  // We’ll just return it and validate on /verify.
   res.json({ nonce });
 };
 
 exports.verify = async (req, res) => {
   try {
-    const { address, publicKey, signature, fullMessage, nonce, application, chainId } = req.body;
+    
+    const { address, publicKey, signature, fullMessage, nonce } = req.body || {};
 
-    if (!nonces.has(nonce)) return res.status(400).send("Invalid/expired nonce");
-    nonces.delete(nonce);
+    console.log("verify body:", {
+      address: (address || "").slice(0, 12) + "...",
+      publicKeyType: typeof publicKey,
+      signatureType: typeof signature,
+      publicKeyLen: typeof publicKey === "string" ? publicKey.length : (publicKey?.length ?? -1),
+      signatureLen: typeof signature === "string" ? signature.length : (signature?.length ?? -1),
+      fullMessageFirstLine: (fullMessage || "").split("\n")[0],
+      nonce,
+    });
 
-    // Verify signature against the standardized fullMessage
-    const ok = await verifyAptosSignature({ publicKey, signature, message: fullMessage });
-    if (!ok) return res.status(401).send("Bad signature");
-
-    // Upsert user by wallet address
-    let user = await User.findOne({ aptosAddress: address.toLowerCase() });
-    if (!user) {
-      user = await User.create({
-        username: `aptos_${address.slice(0, 6)}`, // or prompt user later
-        aptosAddress: address.toLowerCase(),
-        aptosPublicKey: publicKey,
-        online: false,
-      });
-    } else {
-      if (user.aptosPublicKey !== publicKey) {
-        user.aptosPublicKey = publicKey;
-        await user.save();
-      }
+    if (!address || !publicKey || !signature || !fullMessage || !nonce) {
+      return res.status(400).send("Missing fields");
     }
 
-    // Mint short-lived JWT for API + socket handshake
+    const ok = await verifyEd25519Flexible({
+      publicKey,               // can be hex/base64/bytes/array
+      signature,               // can be hex/base64/bytes/array
+      message: fullMessage,    // exact string from wallet
+    });
+
+    if (!ok) return res.status(401).send("Bad signature");
+
+    // 2) Basic nonce check (bind to address in memory)
+    // If you want strict binding, remember last nonce seen per address.
+    // We’ll allow any one-time nonce for dev: store and check on next call.
+    const key = String(address).toLowerCase();
+    const cached = nonces.get(key);
+    const now = Date.now();
+
+    if (!cached || cached.nonce !== nonce || cached.expires < now) {
+      // First time we see this address+nonce, accept and then store it to prevent replay,
+      // OR you can require clients to POST address to /nonce and pre-bind it here.
+      nonces.set(key, { nonce, expires: now + NONCE_TTL_MS });
+    } else {
+      // Replay attempt within TTL → reject
+      return res.status(401).send("Nonce already used");
+    }
+
+    // 3) Upsert the user with aptos keys on record
+    let user = await User.findOne({ aptosAddress: key });
+    if (!user) {
+      user = await User.create({
+        username: key,              // or derive something nicer
+        aptosAddress: key,
+        aptosPublicKey: publicKey,
+      });
+    } else if (!user.aptosPublicKey) {
+      user.aptosPublicKey = publicKey;
+      await user.save();
+    }
+
+    // 4) Issue JWT (httpOnly cookie)
     const token = jwt.sign(
-      { sub: user._id.toString(), addr: address.toLowerCase(), pk: publicKey },
+      {
+        sub: user._id.toString(),
+        addr: key,
+        pk: publicKey,
+      },
       process.env.JWT_SECRET || "dev_secret_change_me",
       { expiresIn: "2h" }
     );
 
-    // httpOnly cookie (frontend uses credentials: "include")
     res.cookie("auth_token", token, {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production", // dev over http works
       maxAge: 2 * 60 * 60 * 1000,
     });
 
     res.json({ ok: true, userId: user._id });
   } catch (e) {
-    console.error(e);
+    console.error("verify error:", e);
     res.status(500).send("Server error");
   }
 };
-
-const signToken = (user) => {
-  return jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
-  });
-};
-
-const assignTokenToCookie = (user, res, statusCode) => {
-  const token = signToken(user);
-
-  const cookieOptions = {
-    httpOnly: true,
-    secure: true,
-    expires: new Date(
-      Date.now() + parseInt(process.env.JWT_EXPIRES_IN) * 24 * 60 * 60 * 1000
-    ),
-  };
-
-  res.cookie("telegramToken", token, cookieOptions);
-  res.cookie("userId", user._id);
-
-  user.password = undefined;
-
-  res.status(statusCode).json({
-    status: "success",
-    data: {
-      token,
-      user,
-    },
-  });
-};
-
-exports.login = catchAsyncError(async (req, res, next) => {
-  // Takes in username and password
-  const { username, password } = req.body;
-
-  // If there's no details given
-  if (!username) return next(new ReqError(400, "Username and Password needed"));
-
-  const foundUser = await User.findOne({ username });
-
-  //   If username does not exist
-  if (!foundUser)
-    return next(new ReqError(400, "Username or Password incorrect"));
-
-  const passwordGivenCorrect = await foundUser.checkPasswordValidity(
-    password,
-    foundUser.password
-  );
-
-  //   If given password is incorrect
-  if (!passwordGivenCorrect)
-    return next(new ReqError(400, "Username or Password incorrect"));
-
-  assignTokenToCookie(foundUser, res, 200);
-});
-
-exports.register = catchAsyncError(async (req, res, next) => {
-  const newUser = await User.create(req.body);
-
-  assignTokenToCookie(newUser, res, 201);
-});

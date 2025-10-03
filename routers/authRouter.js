@@ -3,8 +3,7 @@ const authController = require("../controllers/authController");
 
 const router = express.Router();
 
-router.route("/login").post(authController.login);
-router.route("/register").post(authController.register);
+// Aptos sign-in only
 router.post("/nonce", authController.getNonce);
 router.post("/verify", authController.verify);
 

@@ -4,10 +4,12 @@
   "description": "s",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon index.js",
+    "dev": "npm run mongo:start && npx nodemon index.js",
     "start": "node index.js",
     "build:client": "cd client && npm run build",
-    "serve:prod": "npm run build:client && NODE_ENV=development node index.js"
+    "serve:prod": "npm run build:client && NODE_ENV=development node index.js",
+    "mongo:start": "brew services start mongodb-community@7.0",
+    "mongo:stop": "brew services stop mongodb-community@7.0"
   },
   "repository": {
     "type": "git",
@@ -31,3 +33,5 @@
     "uuid": "^13.0.0"
   }
 }
+
+
